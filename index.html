@@ -136,7 +136,16 @@ table.cmp tr.r-na td:first-child{border-left:3px solid #adb5bd}
 #lb-inner{position:relative;display:flex;align-items:center;justify-content:center;
   max-width:92vw;max-height:88vh}
 #lb-img{max-width:92vw;max-height:82vh;object-fit:contain;border-radius:4px;
-  box-shadow:0 8px 40px rgba(0,0,0,.6);display:block}
+  box-shadow:0 8px 40px rgba(0,0,0,.6);display:block;transform-origin:center center;
+  will-change:transform;cursor:zoom-in;user-select:none;-webkit-user-drag:none}
+#lb-img.zoomed{cursor:grab}
+#lb-img.grabbing{cursor:grabbing}
+.lb-zoom{position:fixed;bottom:1rem;left:50%;transform:translateX(-50%);display:flex;gap:.4rem;
+  align-items:center;background:rgba(0,0,0,.55);padding:.35rem .5rem;border-radius:8px;z-index:10001}
+.lb-zoom button{background:rgba(255,255,255,.2);color:#fff;border:none;cursor:pointer;
+  font-size:1.15rem;width:2rem;height:2rem;border-radius:5px;font-family:var(--font);line-height:1}
+.lb-zoom button:hover{background:rgba(255,255,255,.4)}
+.lb-zoom .zlbl{color:#fff;font-size:12px;min-width:3.2rem;text-align:center}
 #lb-spinner{color:white;font-size:1.5rem;display:none}
 .lb-close{position:fixed;top:1rem;right:1.5rem;color:white;font-size:2.5rem;
   cursor:pointer;line-height:1;opacity:.8;background:none;border:none;font-family:var(--font)}
@@ -164,7 +173,7 @@ table.cmp tr.r-na td:first-child{border-left:3px solid #adb5bd}
 </head>
 <body>
 <div style="background:var(--card);border-bottom:1px solid var(--border);padding:.4rem 1rem;font-size:11px;color:var(--muted);text-align:right">
-  Generated 2026-06-26 00:25 &nbsp;|&nbsp; Big C Portal Invoice OCR Validation
+  Generated 2026-06-26 00:32 &nbsp;|&nbsp; Big C Portal Invoice OCR Validation
 </div>
 <nav id="tab-nav"><button class="tab-btn active" data-tab="dashboard" onclick="showTab('dashboard')">📊 Dashboard</button><button class="tab-btn" data-tab="sup-cpf" onclick="showTab('sup-cpf')">CPF<span class="cnt">24</span><span class="pcnt" style="color:var(--danger)">45.8%</span></button><button class="tab-btn" data-tab="sup-dksh" onclick="showTab('sup-dksh')">DKSH<span class="cnt">5</span><span class="pcnt" style="color:var(--warn)">60.0%</span></button><button class="tab-btn" data-tab="sup-kcg" onclick="showTab('sup-kcg')">KCG<span class="cnt">15</span><span class="pcnt" style="color:var(--danger)">13.3%</span></button><button class="tab-btn" data-tab="sup-cpmeiji" onclick="showTab('sup-cpmeiji')">ซีพี-เมจิ<span class="cnt">18</span><span class="pcnt" style="color:var(--warn)">66.7%</span></button><button class="tab-btn" data-tab="sup-dutchmill" onclick="showTab('sup-dutchmill')">ดัชมิลล์<span class="cnt">18</span><span class="pcnt" style="color:var(--danger)">0.0%</span></button><button class="tab-btn" data-tab="sup-paris" onclick="showTab('sup-paris')">ปารีส<span class="cnt">8</span><span class="pcnt" style="color:var(--danger)">0.0%</span></button><button class="tab-btn" data-tab="sup-ajinomoto" onclick="showTab('sup-ajinomoto')">อายิโนะ<span class="cnt">10</span><span class="pcnt" style="color:var(--success)">100.0%</span></button><button class="tab-btn" data-tab="sup-dairyplus" onclick="showTab('sup-dairyplus')">แดรี่<span class="cnt">2</span><span class="pcnt" style="color:var(--danger)">0.0%</span></button><button class="tab-btn" data-tab="sup-lg" onclick="showTab('sup-lg')">แอลจี<span class="cnt">2</span><span class="pcnt" style="color:var(--danger)">0.0%</span></button><button class="tab-btn" data-tab="sup-osotspa" onclick="showTab('sup-osotspa')">โอสถสภา<span class="cnt">3</span><span class="pcnt" style="color:var(--danger)">0.0%</span></button></nav>
 <div id="dashboard" class="tab-pane active"><div class="stat-cards">
@@ -26764,6 +26773,12 @@ table.cmp tr.r-na td:first-child{border-left:3px solid #adb5bd}
     <div id="lb-cap"></div>
     <div id="lb-counter"></div>
   </div>
+  <div class="lb-zoom">
+    <button onclick="lbZoom(-1)" title="Zoom out">&#8722;</button>
+    <span class="zlbl" id="lb-zlbl">100%</span>
+    <button onclick="lbZoom(1)" title="Zoom in">+</button>
+    <button onclick="lbZoomReset()" title="Reset (fit)">&#8635;</button>
+  </div>
 </div>
 <script>
 /* ── Tabs ── */
@@ -26786,6 +26801,15 @@ window.addEventListener('DOMContentLoaded',function(){
   var lb=null, lbImg=null, lbCap=null, lbCnt=null;
   var galleries={};   // gid -> [{src,cap}]
   var curGid=null, curIdx=0;
+  var scale=1, panX=0, panY=0, dragging=false, sX=0, sY=0, moved=false;
+
+  function applyT(){
+    lbImg.style.transform='translate('+panX+'px,'+panY+'px) scale('+scale+')';
+    var z=document.getElementById('lb-zlbl'); if(z) z.textContent=Math.round(scale*100)+'%';
+    lbImg.classList.toggle('zoomed', scale>1.001);
+  }
+  function resetZoom(){scale=1;panX=0;panY=0;if(lbImg)applyT();}
+  function setZoom(s){scale=Math.min(6,Math.max(1,s));if(scale<=1.001){panX=0;panY=0;}applyT();}
 
   function init(){
     lb=document.getElementById('lightbox');
@@ -26801,12 +26825,32 @@ window.addEventListener('DOMContentLoaded',function(){
       el.addEventListener('click',function(){open(gid,parseInt(el.dataset.idx));});
     });
 
-    lb.addEventListener('click',function(e){if(e.target===lb) close();});
+    lb.addEventListener('click',function(e){if(e.target===lb && !moved) close();});
     document.addEventListener('keydown',function(e){
       if(!lb||lb.style.display==='none') return;
       if(e.key==='Escape') close();
-      if(e.key==='ArrowLeft'||e.key==='ArrowUp') prev();
-      if(e.key==='ArrowRight'||e.key==='ArrowDown') next();
+      if(e.key==='+'||e.key==='=') setZoom(scale*1.3);
+      if(e.key==='-') setZoom(scale/1.3);
+      if(e.key==='0') resetZoom();
+      if(scale<=1.001){
+        if(e.key==='ArrowLeft'||e.key==='ArrowUp') prev();
+        if(e.key==='ArrowRight'||e.key==='ArrowDown') next();
+      }
+    });
+
+    // Wheel = zoom; double-click = toggle; drag = pan when zoomed
+    var inner=document.getElementById('lb-inner');
+    inner.addEventListener('wheel',function(e){e.preventDefault();setZoom(scale*(e.deltaY<0?1.15:1/1.15));},{passive:false});
+    lbImg.addEventListener('dblclick',function(e){e.preventDefault();setZoom(scale>1.001?1:2.5);});
+    lbImg.addEventListener('mousedown',function(e){
+      if(scale<=1.001)return; e.preventDefault();
+      dragging=true;moved=false;sX=e.clientX-panX;sY=e.clientY-panY;lbImg.classList.add('grabbing');
+    });
+    window.addEventListener('mousemove',function(e){
+      if(!dragging)return; panX=e.clientX-sX;panY=e.clientY-sY;moved=true;applyT();
+    });
+    window.addEventListener('mouseup',function(){
+      if(dragging){dragging=false;lbImg.classList.remove('grabbing');setTimeout(function(){moved=false;},50);}
     });
   }
 
@@ -26824,6 +26868,7 @@ window.addEventListener('DOMContentLoaded',function(){
     var g=galleries[curGid];
     var item=g[curIdx];
     lbImg.style.opacity='0';
+    resetZoom();
     lbImg.onload=function(){lbImg.style.opacity='1';};
     lbImg.src=item.src;
     lbCap.textContent=item.cap;
@@ -26835,6 +26880,8 @@ window.addEventListener('DOMContentLoaded',function(){
   function next(){var g=galleries[curGid];curIdx=(curIdx+1)%g.length;show();}
 
   window.lbPrev=prev; window.lbNext=next; window.lbClose=close;
+  window.lbZoom=function(dir){setZoom(scale*(dir>0?1.3:1/1.3));};
+  window.lbZoomReset=resetZoom;
   window.addEventListener('DOMContentLoaded',init);
 })();
 </script>
