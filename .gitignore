@@ -1,0 +1,7 @@
+raw_ocr.json
+vision_results.json
+report.html
+*.log
+PROGRESS.md
+results.json
+progress.json
